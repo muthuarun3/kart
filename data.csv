@@ -1,0 +1,11 @@
+Section,Pilote,Date,Circuit,Temps (min:sec.ms),Kart,Note,Meilleur Tour,Ecart,Tours
+Détails,Muthu,2025-10-04,Circuit court,54.777,,,,
+Détails,Muthu,2025-10-04,Circuit court,55.101,,,,
+Détails,Muthu,2025-10-18,Circuit long,1:50.814,36,**,,
+Détails,Muthu,2025-10-18,Circuit long,1:48.950,25,***,,
+Détails,Tony,2025-10-04,Circuit court,52.268,,,,
+Détails,Tony,2025-10-04,Circuit court,53.568,,,,
+Détails,Tony,2025-10-18,Circuit long,1:50.734,42,**,,
+Détails,Tony,2025-10-18,Circuit long,1:53.603,40,*,,
+Résumé,Tony,,,,42,,1:50.734,8.750,6
+Résumé,Muthu,,,,36,,1:50.814,8.830,6
