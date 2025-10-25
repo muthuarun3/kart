@@ -35,11 +35,17 @@ def time_to_seconds(time_str):
 def load_data(file):
     df = pd.read_csv(file)
 
-    # Conversion des temps en secondes
-    df['Temps_secondes'] = df['Temps (min:sec.ms)'].apply(time_to_seconds)
+    # Conversion des temps en secondes (Meilleur Tour)
+    df['Temps_secondes'] = df['Meilleur Tour'].apply(time_to_seconds)
 
     # Conversion des dates
-    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+    df['Date'] = pd.to_datetime(df['Date'], format='%d/%m/%Y', errors='coerce')
+
+    # Conversion de l'humidité en numérique
+    df['Humidité'] = pd.to_numeric(df['Humidité'], errors='coerce')
+
+    # Conversion du numéro de kart en string pour traitement catégoriel
+    df['Kart'] = df['Kart'].astype(str).replace('nan', '')
 
     return df
 
@@ -48,20 +54,16 @@ def load_data(file):
 st.title("🏎️ Tableau de bord d'analyse Karting")
 
 # Upload du fichier
-uploaded_file = 'data.csv'
+uploaded_file = st.file_uploader("Charger le fichier CSV", type=['csv'])
 
 if uploaded_file is not None:
     df = load_data(uploaded_file)
-
-    # Séparation des données Détails et Résumé
-    df_details = df[df['Section'] == 'Détails'].copy()
-    df_resume = df[df['Section'] == 'Résumé'].copy()
 
     # Sidebar pour les filtres
     st.sidebar.header("Filtres")
 
     # Filtre par pilote
-    pilotes = df_details['Pilote'].dropna().unique()
+    pilotes = df['Pilote'].dropna().unique()
     pilote_select = st.sidebar.multiselect(
         "Sélectionner les pilotes",
         options=pilotes,
@@ -69,18 +71,31 @@ if uploaded_file is not None:
     )
 
     # Filtre par circuit
-    circuits = df_details['Circuit'].dropna().unique()
+    circuits = df['Circuit'].dropna().unique()
     circuit_select = st.sidebar.multiselect(
         "Sélectionner les circuits",
         options=circuits,
         default=circuits
     )
 
+    # Filtre par date
+    dates = sorted(df['Date'].dropna().unique())
+    if len(dates) > 0:
+        date_select = st.sidebar.multiselect(
+            "Sélectionner les dates",
+            options=[d.strftime('%d/%m/%Y') for d in dates],
+            default=[d.strftime('%d/%m/%Y') for d in dates]
+        )
+        date_select_dt = pd.to_datetime(date_select, format='%d/%m/%Y')
+    else:
+        date_select_dt = []
+
     # Filtrage des données
-    df_filtered = df_details[
-        (df_details['Pilote'].isin(pilote_select)) &
-        (df_details['Circuit'].isin(circuit_select))
-        ]
+    df_filtered = df[
+        (df['Pilote'].isin(pilote_select)) &
+        (df['Circuit'].isin(circuit_select)) &
+        (df['Date'].isin(date_select_dt))
+        ].copy()
 
     # Métriques principales
     st.header("📊 Vue d'ensemble")
@@ -88,45 +103,88 @@ if uploaded_file is not None:
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("Nombre de tours", len(df_filtered))
+        st.metric("Nombre de sessions", len(df_filtered))
 
     with col2:
         meilleur_temps = df_filtered['Temps_secondes'].min()
-        st.metric("Meilleur temps", f"{meilleur_temps:.3f}s" if pd.notna(meilleur_temps) else "N/A")
+        if pd.notna(meilleur_temps):
+            mins = int(meilleur_temps // 60)
+            secs = meilleur_temps % 60
+            if mins > 0:
+                st.metric("Meilleur tour", f"{mins}:{secs:06.3f}")
+            else:
+                st.metric("Meilleur tour", f"{secs:.3f}s")
+        else:
+            st.metric("Meilleur tour", "N/A")
 
     with col3:
         temps_moyen = df_filtered['Temps_secondes'].mean()
-        st.metric("Temps moyen", f"{temps_moyen:.3f}s" if pd.notna(temps_moyen) else "N/A")
+        if pd.notna(temps_moyen):
+            mins = int(temps_moyen // 60)
+            secs = temps_moyen % 60
+            if mins > 0:
+                st.metric("Temps moyen", f"{mins}:{secs:06.3f}")
+            else:
+                st.metric("Temps moyen", f"{secs:.3f}s")
+        else:
+            st.metric("Temps moyen", "N/A")
 
     with col4:
-        nb_pilotes = df_filtered['Pilote'].nunique()
-        st.metric("Nombre de pilotes", nb_pilotes)
+        nb_dates = df_filtered['Date'].nunique()
+        st.metric("Nombre de sessions", nb_dates)
 
     # Graphiques
     st.header("📈 Analyses")
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
-        ["Évolution des temps", "Comparaison pilotes", "Comparaison karts", "Distribution", "Résumé"])
+        ["Évolution temporelle", "Comparaison pilotes", "Impact humidité", "Comparaison karts", "Statistiques"]
+    )
 
     with tab1:
-        st.subheader("Évolution des temps par tour")
+        st.subheader("Évolution des performances dans le temps")
 
         if not df_filtered.empty:
-            # Ajout d'un numéro de tour
-            df_plot = df_filtered.copy()
-            df_plot['Numéro_tour'] = df_plot.groupby(['Pilote', 'Circuit', 'Date']).cumcount() + 1
+            df_plot = df_filtered.sort_values('Date').copy()
 
-            fig = px.line(
+            fig = px.scatter(
                 df_plot,
-                x='Numéro_tour',
+                x='Date',
                 y='Temps_secondes',
                 color='Pilote',
-                markers=True,
-                facet_col='Circuit',
-                title="Progression des temps de tour",
-                labels={'Temps_secondes': 'Temps (secondes)', 'Numéro_tour': 'Numéro de tour'}
+                size='Humidité',
+                hover_data=['Circuit', 'Kart', 'Note', 'Humidité'],
+                title="Évolution des meilleurs tours (taille = humidité)",
+                labels={'Temps_secondes': 'Temps (secondes)'}
             )
+
+            # Ajouter une ligne de tendance pour chaque pilote
+            for pilote in df_plot['Pilote'].unique():
+                df_pilote = df_plot[df_plot['Pilote'] == pilote].sort_values('Date')
+                fig.add_trace(go.Scatter(
+                    x=df_pilote['Date'],
+                    y=df_pilote['Temps_secondes'],
+                    mode='lines',
+                    name=f'{pilote} (tendance)',
+                    line=dict(dash='dash'),
+                    showlegend=True
+                ))
+
             fig.update_layout(height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Graphique par circuit
+            st.subheader("Évolution par circuit")
+            fig = px.line(
+                df_plot,
+                x='Date',
+                y='Temps_secondes',
+                color='Pilote',
+                facet_col='Circuit',
+                markers=True,
+                title="Progression par circuit",
+                labels={'Temps_secondes': 'Temps (secondes)'}
+            )
+            fig.update_layout(height=400)
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("Aucune donnée à afficher avec les filtres sélectionnés")
@@ -163,11 +221,85 @@ if uploaded_file is not None:
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
+            # Tableau comparatif
+            st.subheader("Statistiques par pilote et circuit")
+            stats_pilote = df_filtered.groupby(['Pilote', 'Circuit']).agg({
+                'Temps_secondes': ['count', 'mean', 'min', 'max']
+            }).round(3)
+            stats_pilote.columns = ['Nombre de tours', 'Temps moyen', 'Meilleur temps', 'Temps le plus lent']
+            st.dataframe(stats_pilote, use_container_width=True)
+
     with tab3:
+        st.subheader("Impact de l'humidité sur les performances")
+
+        df_humidity = df_filtered[df_filtered['Humidité'].notna()].copy()
+
+        if not df_humidity.empty:
+            col1, col2 = st.columns(2)
+
+            with col1:
+                # Scatter plot temps vs humidité
+                fig = px.scatter(
+                    df_humidity,
+                    x='Humidité',
+                    y='Temps_secondes',
+                    color='Pilote',
+                    trendline="ols",
+                    title="Relation entre humidité et temps de tour",
+                    labels={'Temps_secondes': 'Temps (secondes)', 'Humidité': 'Humidité (%)'},
+                    hover_data=['Date', 'Circuit', 'Kart']
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            with col2:
+                # Box plot par niveau d'humidité
+                df_humidity['Niveau_humidité'] = pd.cut(
+                    df_humidity['Humidité'],
+                    bins=[-0.1, 0.1, 0.5, 1.0],
+                    labels=['Sec (0-0.1)', 'Moyen (0.1-0.5)', 'Humide (0.5-1.0)']
+                )
+
+                fig = px.box(
+                    df_humidity,
+                    x='Niveau_humidité',
+                    y='Temps_secondes',
+                    color='Pilote',
+                    title="Performance selon le niveau d'humidité",
+                    labels={'Temps_secondes': 'Temps (secondes)', 'Niveau_humidité': 'Conditions'}
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Analyse par pilote et humidité
+            st.subheader("Performance moyenne par pilote selon les conditions")
+            humidity_stats = df_humidity.groupby(['Pilote', 'Niveau_humidité'])['Temps_secondes'].agg(
+                ['mean', 'count']).round(3)
+            humidity_stats.columns = ['Temps moyen (s)', 'Nombre de tours']
+            st.dataframe(humidity_stats, use_container_width=True)
+
+            # Heatmap pilote vs humidité
+            if len(df_humidity['Pilote'].unique()) > 1:
+                st.subheader("Carte de chaleur : Performance selon l'humidité")
+                pivot_humidity = df_humidity.pivot_table(
+                    values='Temps_secondes',
+                    index='Pilote',
+                    columns='Niveau_humidité',
+                    aggfunc='mean'
+                )
+
+                fig = px.imshow(
+                    pivot_humidity,
+                    labels=dict(x="Niveau d'humidité", y="Pilote", color="Temps (s)"),
+                    color_continuous_scale='RdYlGn_r',
+                    title="Temps moyens selon les conditions"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Aucune donnée d'humidité disponible")
+
+    with tab4:
         st.subheader("Comparaison des performances par kart")
 
-        # Filtrer uniquement les données avec numéro de kart
-        df_karts = df_filtered[df_filtered['Kart'].notna()].copy()
+        df_karts = df_filtered[df_filtered['Kart'] != ''].copy()
 
         if not df_karts.empty:
             col1, col2 = st.columns(2)
@@ -182,114 +314,82 @@ if uploaded_file is not None:
                     title="Distribution des temps par kart",
                     labels={'Temps_secondes': 'Temps (secondes)', 'Kart': 'Numéro de kart'}
                 )
-                fig.update_xaxes(type='category')
-
                 st.plotly_chart(fig, use_container_width=True)
 
             with col2:
-                # Temps moyens par kart
-                avg_karts = df_karts.groupby('Kart')['Temps_secondes'].mean().reset_index()
+                # Temps moyens par kart avec notation
+                avg_karts = df_karts.groupby(['Kart', 'Note'])['Temps_secondes'].mean().reset_index()
                 avg_karts = avg_karts.sort_values('Temps_secondes')
 
                 fig = px.bar(
                     avg_karts,
                     x='Kart',
                     y='Temps_secondes',
-                    title="Temps moyens par kart (du plus rapide au plus lent)",
+                    color='Note',
+                    title="Temps moyens par kart et notation",
                     labels={'Temps_secondes': 'Temps moyen (secondes)', 'Kart': 'Numéro de kart'},
-                    color='Temps_secondes',
-                    color_continuous_scale='RdYlGn_r'
                 )
-                fig.update_xaxes(type='category')
                 st.plotly_chart(fig, use_container_width=True)
-
-            # Tableau comparatif pilotes/karts
-            st.subheader("Performances par pilote et kart")
-
-            pilot_kart_stats = df_karts.groupby(['Pilote', 'Kart']).agg({
-                'Temps_secondes': ['count', 'mean', 'min']
-            }).round(3)
-
-            pilot_kart_stats.columns = ['Nombre de tours', 'Temps moyen', 'Meilleur temps']
-            pilot_kart_stats = pilot_kart_stats.reset_index()
-
-            fig = px.scatter(
-                pilot_kart_stats,
-                x='Kart',
-                y='Temps moyen',
-                size='Nombre de tours',
-                color='Pilote',
-                title="Performance des pilotes selon les karts",
-                labels={'Temps moyen': 'Temps moyen (secondes)', 'Kart': 'Numéro de kart'},
-                hover_data=['Meilleur temps']
-            )
-            fig.update_xaxes(type='category')
-            st.plotly_chart(fig, use_container_width=True)
 
             # Statistiques détaillées par kart
             st.subheader("Statistiques détaillées par kart")
-
-            kart_stats = df_karts.groupby('Kart').agg({
-                'Temps_secondes': ['count', 'mean', 'min', 'max', 'std']
+            kart_stats = df_karts.groupby(['Kart', 'Note']).agg({
+                'Temps_secondes': ['count', 'mean', 'min'],
+                'Pilote': lambda x: ', '.join(x.unique())
             }).round(3)
-
-            kart_stats.columns = ['Nombre de tours', 'Temps moyen', 'Meilleur temps', 'Temps le plus lent',
-                                  'Écart-type']
+            kart_stats.columns = ['Nombre d\'utilisations', 'Temps moyen', 'Meilleur temps', 'Pilotes']
             kart_stats = kart_stats.sort_values('Temps moyen')
             st.dataframe(kart_stats, use_container_width=True)
 
-            # Heatmap pilote vs kart
-            if len(df_karts['Pilote'].unique()) > 1 and len(df_karts['Kart'].unique()) > 1:
-                st.subheader("Carte de chaleur : Temps moyens par pilote et kart")
-
-                pivot_data = df_karts.pivot_table(
-                    values='Temps_secondes',
-                    index='Pilote',
-                    columns='Kart',
-                    aggfunc='mean'
-                )
-
-                fig = px.imshow(
-                    pivot_data,
-                    labels=dict(x="Numéro de kart", y="Pilote", color="Temps (s)"),
-                    color_continuous_scale='RdYlGn_r',
-                    title="Temps moyens : plus foncé = plus rapide"
-                )
-                st.plotly_chart(fig, use_container_width=True)
+            # Analyse par pilote et kart
+            st.subheader("Performance par pilote selon le kart")
+            pilot_kart = df_karts.groupby(['Pilote', 'Kart']).agg({
+                'Temps_secondes': ['count', 'mean', 'min']
+            }).round(3)
+            pilot_kart.columns = ['Nombre de tours', 'Temps moyen', 'Meilleur temps']
+            st.dataframe(pilot_kart, use_container_width=True)
         else:
-            st.info("Aucune donnée de kart disponible avec les filtres sélectionnés")
+            st.info("Aucune donnée de kart disponible")
 
     with tab5:
-        st.subheader("Distribution des temps")
+        st.subheader("Statistiques globales")
 
-        if not df_filtered.empty:
-            fig = px.histogram(
-                df_filtered,
-                x='Temps_secondes',
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Statistiques par pilote
+            st.write("**Par pilote**")
+            stats_pilote = df_filtered.groupby('Pilote').agg({
+                'Temps_secondes': ['count', 'mean', 'min', 'max', 'std']
+            }).round(3)
+            stats_pilote.columns = ['Nombre de tours', 'Temps moyen', 'Meilleur temps', 'Temps le plus lent',
+                                    'Écart-type']
+            st.dataframe(stats_pilote, use_container_width=True)
+
+        with col2:
+            # Statistiques par circuit
+            st.write("**Par circuit**")
+            stats_circuit = df_filtered.groupby('Circuit').agg({
+                'Temps_secondes': ['count', 'mean', 'min', 'max']
+            }).round(3)
+            stats_circuit.columns = ['Nombre de tours', 'Temps moyen', 'Meilleur temps', 'Temps le plus lent']
+            st.dataframe(stats_circuit, use_container_width=True)
+
+        # Distribution des notations
+        st.subheader("Distribution des notations de kart")
+        df_notes = df_filtered[df_filtered['Note'].notna()]
+        if not df_notes.empty:
+            note_counts = df_notes.groupby(['Pilote', 'Note']).size().reset_index(name='count')
+            fig = px.bar(
+                note_counts,
+                x='Note',
+                y='count',
                 color='Pilote',
-                nbins=20,
-                title="Distribution des temps de tour",
-                labels={'Temps_secondes': 'Temps (secondes)'},
-                barmode='overlay',
-                opacity=0.7
+                barmode='group',
+                title="Répartition des notations par pilote",
+                labels={'count': 'Nombre de tours', 'Note': 'Notation du kart'}
             )
             st.plotly_chart(fig, use_container_width=True)
-
-    with tab4:
-        st.subheader("Résumé des performances")
-
-        if not df_resume.empty:
-            st.dataframe(df_resume, use_container_width=True)
-
-        # Statistiques détaillées par pilote
-        st.subheader("Statistiques détaillées")
-
-        stats = df_filtered.groupby('Pilote').agg({
-            'Temps_secondes': ['count', 'mean', 'min', 'max', 'std']
-        }).round(3)
-
-        stats.columns = ['Nombre de tours', 'Temps moyen', 'Meilleur temps', 'Temps le plus lent', 'Écart-type']
-        st.dataframe(stats, use_container_width=True)
 
     # Données brutes
     with st.expander("📋 Voir les données brutes"):
@@ -305,21 +405,27 @@ if uploaded_file is not None:
         )
 
 else:
-    st.info("👆 Veuillez uploader le fichier data.csv pour commencer l'analyse")
+    st.info("👆 Veuillez uploader un fichier CSV pour commencer l'analyse")
 
-    # Instructions
     st.markdown("""
-    ### Comment utiliser cette application ?
+    ### Format attendu du fichier CSV
 
-    1. **Uploadez votre fichier CSV** en utilisant le bouton ci-dessus
-    2. **Filtrez les données** via la barre latérale (pilotes, circuits)
-    3. **Explorez les différents onglets** pour analyser les performances
-    4. **Téléchargez les résultats** si nécessaire
+    Le fichier doit contenir les colonnes suivantes :
+    - **Section** : Numéro de session
+    - **Pilote** : Nom du pilote
+    - **Date** : Date de la session (format JJ/MM/AAAA)
+    - **Circuit** : Nom du circuit (Court/Long)
+    - **Temps (min:sec.ms)** : Temps global (optionnel)
+    - **Kart** : Numéro du kart
+    - **Note** : Notation du kart (*, **, ***)
+    - **Meilleur Tour** : Temps du meilleur tour (format mm:ss.ms ou ss.ms)
+    - **Humidité** : Niveau d'humidité (0 à 1)
 
-    #### Fonctionnalités disponibles :
-    - 📊 Métriques clés (nombre de tours, meilleurs temps, moyennes)
-    - 📈 Évolution des temps par tour
-    - 👥 Comparaison entre pilotes
-    - 📉 Distribution statistique des temps
-    - 📋 Vue des données brutes et export
+    ### Fonctionnalités disponibles
+    - 📊 Métriques clés et vue d'ensemble
+    - 📈 Évolution temporelle des performances
+    - 👥 Comparaison détaillée entre pilotes
+    - 🌧️ Analyse de l'impact de l'humidité
+    - 🏎️ Comparaison des performances par kart
+    - 📉 Statistiques complètes et distribution
     """)
