@@ -98,9 +98,10 @@ if uploaded_file is not None:
         ].copy()
 
     # Métriques principales
-    st.header("📊 Vue d'ensemble")
+    container = st.container(border=True)
+    container.header("📊 Vue d'ensemble")
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4 = container.columns(4)
 
     with col1:
         st.metric("Nombre de sessions", len(df_filtered))
