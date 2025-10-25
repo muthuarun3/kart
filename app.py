@@ -54,7 +54,7 @@ def load_data(file):
 st.title("🏎️ Tableau de bord d'analyse Karting")
 
 # Upload du fichier
-uploaded_file = st.file_uploader("Charger le fichier CSV", type=['csv'])
+uploaded_file = 'data.csv'
 
 if uploaded_file is not None:
     df = load_data(uploaded_file)
@@ -98,10 +98,9 @@ if uploaded_file is not None:
         ].copy()
 
     # Métriques principales
-    container = st.container(border=True)
-    container.header("📊 Vue d'ensemble")
+    st.header("📊 Vue d'ensemble")
 
-    col1, col2, col3, col4 = container.columns(4)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         st.metric("Nombre de sessions", len(df_filtered))
@@ -240,16 +239,29 @@ if uploaded_file is not None:
 
             with col1:
                 # Scatter plot temps vs humidité
-                fig = px.scatter(
-                    df_humidity,
-                    x='Humidité',
-                    y='Temps_secondes',
-                    color='Pilote',
-                    trendline="ols",
-                    title="Relation entre humidité et temps de tour",
-                    labels={'Temps_secondes': 'Temps (secondes)', 'Humidité': 'Humidité (%)'},
-                    hover_data=['Date', 'Circuit', 'Kart']
-                )
+                try:
+                    # Tenter avec ligne de tendance (nécessite statsmodels)
+                    fig = px.scatter(
+                        df_humidity,
+                        x='Humidité',
+                        y='Temps_secondes',
+                        color='Pilote',
+                        trendline="ols",
+                        title="Relation entre humidité et temps de tour",
+                        labels={'Temps_secondes': 'Temps (secondes)', 'Humidité': 'Humidité (%)'},
+                        hover_data=['Date', 'Circuit', 'Kart']
+                    )
+                except Exception:
+                    # Sinon, afficher sans ligne de tendance
+                    fig = px.scatter(
+                        df_humidity,
+                        x='Humidité',
+                        y='Temps_secondes',
+                        color='Pilote',
+                        title="Relation entre humidité et temps de tour",
+                        labels={'Temps_secondes': 'Temps (secondes)', 'Humidité': 'Humidité (%)'},
+                        hover_data=['Date', 'Circuit', 'Kart']
+                    )
                 st.plotly_chart(fig, use_container_width=True)
 
             with col2:
