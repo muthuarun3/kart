@@ -3,7 +3,7 @@ from sqlmodel import SQLModel, Session
 
 
 # Nom du fichier de base de données SQLite
-sqlite_file_name = "karting_data.db"
+sqlite_file_name = "backend/karting_data.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 engine = create_engine(sqlite_url, echo=True)
 
