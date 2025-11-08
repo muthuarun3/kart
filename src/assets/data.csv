@@ -1,0 +1,19 @@
+Section,Pilote,Date,Circuit,Temps (min:sec.ms),Kart,Note,Meilleur Tour,Ecart,Tours,Humidite
+1,Muthu,04/10/2025,Circuit court,,,,,54.777,,0
+2,Muthu,04/10/2025,Circuit court,,,,,55.101,,0
+1,Muthu,18/10/2025,Circuit long,,36,**,1:50.814,,,0
+2,Muthu,18/10/2025,Circuit long,,25,***,1:48.950,,,0
+1,Muthu,25/10/2025,Circuit long,,39,***,2:41.790,,,0.9
+2,Muthu,25/10/2025,Circuit long,,35,**,2:44.068,,,0.8
+3,Muthu,25/10/2025,Circuit long,,41,***,2:19.506,,,0.6
+4,Muthu,25/10/2025,Circuit long,,4,***,2:00.194,,,0.4
+5,Muthu,25/10/2025,Circuit long,,26,**,1:54.854,,,0.2
+1,Tony,04/10/2025,Circuit court,,,,,52.268,,0
+2,Tony,04/10/2025,Circuit court,,,,,53.568,,0
+1,Tony,18/10/2025,Circuit long,,42,**,1:50.734,,,0
+2,Tony,18/10/2025,Circuit long,,40,*,1:53.603,,,0
+1,Tony,25/10/2025,Circuit long,,3,**,2:42.860,,,0.9
+2,Tony,25/10/2025,Circuit long,,15,**,2:38.447,,,0.8
+3,Tony,25/10/2025,Circuit long,,21,**,2:20.643,,,0.6
+4,Tony,25/10/2025,Circuit long,,10,*,2:01.712,,,0.4
+5,Tony,25/10/2025,Circuit long,,39,**,1:56.227,,,0.2
